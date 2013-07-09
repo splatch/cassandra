@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 import org.apache.cassandra.cache.SerializingCacheProvider;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.service.CassandraDaemon.Server;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -169,6 +170,7 @@ public class Config
     public boolean populate_io_cache_on_flush = false;
 
     public boolean inter_dc_tcp_nodelay = true;
+    public Server[] servers;
 
     private static boolean loadYaml = true;
     private static boolean outboundBindAny = false;

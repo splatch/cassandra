@@ -1,0 +1,33 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.apache.cassandra</groupId>
+    <artifactId>cassandra-all</artifactId>
+    <version>1.2.6-SNAPSHOT</version>
+
+    <scm>
+        <connection>scm:git://git.apache.org/cassandra.git</connection>
+        <developerConnection>scm:git://git.apache.org/cassandra.git</developerConnection>
+        <url>http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=tree</url>
+    </scm>
+
+    <build>
+        <sourceDirectory>${project.basedir}/src/java</sourceDirectory>
+        <resources>
+            <resource>
+                <directory>${project.basedir}/src/resources</directory>
+            </resource>
+        </resources>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.2</version>
+        </dependency>
+        
+    </dependencies>
+
+</project>

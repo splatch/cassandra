@@ -20,13 +20,13 @@ package org.apache.cassandra.thrift;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TFramedTransport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ThriftServer implements CassandraDaemon.Server
 {
@@ -35,14 +35,19 @@ public class ThriftServer implements CassandraDaemon.Server
     final static String ASYNC = "async";
     final static String HSHA = "hsha";
 
-    private final InetAddress address;
-    private final int port;
+    private InetAddress address;
+    private int port;
     private volatile ThriftServerThread server;
 
-    public ThriftServer(InetAddress address, int port)
+    public void init(InetAddress address, int port)
     {
         this.address = address;
         this.port = port;
+    }
+
+    @Override
+    public void init(Config config) throws Exception {
+        init(InetAddress.getByName(config.rpc_address), config.rpc_port);
     }
 
     public void start()

@@ -24,12 +24,11 @@ import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.SSLFactory;
@@ -52,6 +51,8 @@ import org.jboss.netty.handler.execution.ExecutionHandler;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Slf4JLoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Server implements CassandraDaemon.Server
 {
@@ -64,13 +65,13 @@ public class Server implements CassandraDaemon.Server
 
     private final ConnectionTracker connectionTracker = new ConnectionTracker();
 
-    public final InetSocketAddress socket;
+    public InetSocketAddress socket;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     private ChannelFactory factory;
     private ExecutionHandler executionHandler;
 
-    public Server(InetSocketAddress socket)
+    public void init(InetSocketAddress socket)
     {
         this.socket = socket;
         EventNotifier notifier = new EventNotifier(this);
@@ -78,19 +79,24 @@ public class Server implements CassandraDaemon.Server
         MigrationManager.instance.register(notifier);
     }
 
-    public Server(String hostname, int port)
+    public void init(String hostname, int port)
     {
-        this(new InetSocketAddress(hostname, port));
+        init(new InetSocketAddress(hostname, port));
     }
 
-    public Server(InetAddress host, int port)
+    public void init(InetAddress host, int port)
     {
-        this(new InetSocketAddress(host, port));
+        init(new InetSocketAddress(host, port));
     }
 
-    public Server(int port)
+    public void init(int port)
     {
-        this(new InetSocketAddress(port));
+        init(new InetSocketAddress(port));
+    }
+
+    @Override
+    public void init(Config config) {
+        init(config.rpc_address, config.rpc_port);
     }
 
     public void start()

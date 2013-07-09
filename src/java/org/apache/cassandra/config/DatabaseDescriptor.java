@@ -50,6 +50,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.service.CassandraDaemon.Server;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.FBUtilities;
 import org.yaml.snakeyaml.Loader;
@@ -1267,4 +1268,13 @@ public class DatabaseDescriptor
     {
         return conf.inter_dc_tcp_nodelay;
     }
+
+    public static Server[] getServers() {
+        return conf.servers;
+    }
+
+    public static Config getConf() {
+        return conf;
+    }
+
 }

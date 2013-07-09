@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
@@ -31,24 +30,28 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 
-import com.google.common.collect.Iterables;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.MeteredFlusher;
+import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.thrift.ThriftServer;
-import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.CLibrary;
-import org.apache.cassandra.utils.Mx4jTool;
+import com.google.common.collect.Iterables;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -125,8 +128,7 @@ public class CassandraDaemon
 
     static final AtomicInteger exceptions = new AtomicInteger();
 
-    public Server thriftServer;
-    public Server nativeServer;
+    private Server[] servers;
 
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
@@ -356,15 +358,26 @@ public class CassandraDaemon
 
         Mx4jTool.maybeLoad();
 
-        // Thift
-        InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
-        int rpcPort = DatabaseDescriptor.getRpcPort();
-        thriftServer = new ThriftServer(rpcAddr, rpcPort);
+        servers = DatabaseDescriptor.getServers();
+        for (Server server : servers) {
+            try {
+                server.init(DatabaseDescriptor.getConf());
+            } catch (Exception e) {
+                logger.error("Could not start server", e);
+                System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
+                System.exit(1);
+            }
+        }
 
-        // Native transport
-        InetAddress nativeAddr = DatabaseDescriptor.getNativeTransportAddress();
-        int nativePort = DatabaseDescriptor.getNativeTransportPort();
-        nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+//        // Thift
+//        InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
+//        int rpcPort = DatabaseDescriptor.getRpcPort();
+//        thriftServer = new ThriftServer(rpcAddr, rpcPort);
+//
+//        // Native transport
+//        InetAddress nativeAddr = DatabaseDescriptor.getNativeTransportAddress();
+//        int nativePort = DatabaseDescriptor.getNativeTransportPort();
+//        nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
     }
 
     /**
@@ -389,17 +402,21 @@ public class CassandraDaemon
      */
     public void start()
     {
-        String nativeFlag = System.getProperty("cassandra.start_native_transport");
-        if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
-            nativeServer.start();
-        else
-            logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
+        for (Server server : servers) {
+            server.start();
+        }
 
-        String rpcFlag = System.getProperty("cassandra.start_rpc");
-        if ((rpcFlag != null && Boolean.parseBoolean(rpcFlag)) || (rpcFlag == null && DatabaseDescriptor.startRpc()))
-            thriftServer.start();
-        else
-            logger.info("Not starting RPC server as requested. Use JMX (StorageService->startRPCServer()) or nodetool (enablethrift) to start it");
+//        String nativeFlag = System.getProperty("cassandra.start_native_transport");
+//        if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
+//            nativeServer.start();
+//        else
+//            logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
+//
+//        String rpcFlag = System.getProperty("cassandra.start_rpc");
+//        if ((rpcFlag != null && Boolean.parseBoolean(rpcFlag)) || (rpcFlag == null && DatabaseDescriptor.startRpc()))
+//            thriftServer.start();
+//        else
+//            logger.info("Not starting RPC server as requested. Use JMX (StorageService->startRPCServer()) or nodetool (enablethrift) to start it");
     }
 
     /**
@@ -412,8 +429,9 @@ public class CassandraDaemon
         // this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
-        thriftServer.stop();
-        nativeServer.stop();
+        for (Server server : servers) {
+            server.stop();
+        }
     }
 
 
@@ -480,6 +498,10 @@ public class CassandraDaemon
         destroy();
     }
 
+    public Server[] getServers() {
+        return servers;
+    }
+
     public static void stop(String[] args)
     {
         instance.deactivate();
@@ -505,6 +527,8 @@ public class CassandraDaemon
 
     public interface Server
     {
+        public void init(Config config) throws Exception;
+
         /**
          * Start the server.
          * This method shoud be able to restart a server stopped through stop().
@@ -524,4 +548,5 @@ public class CassandraDaemon
          */
         public boolean isRunning();
     }
+
 }
